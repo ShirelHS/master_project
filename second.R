@@ -16,7 +16,29 @@ rm(list = ls())
 # read the filtered normalized data from csv file
 # cut the data to mature and precursor 
 
-normalized_exp <- read.csv(file = "normalized_exp.csv", header = TRUE, sep = ",")[,-1]
+file_name <- "normalized_exp.csv"
+
+read_relev_data <- function(file_name) {
+  
+  normalized_exp <- read.csv(file = file_name, header = TRUE, sep = ",")[,-1]
+  return(normalized_exp)
+  
+}
+
+get_mzt <- function() {
+  
+  mzt <- readline(prompt = "Enter hour of the MZT: ")
+  return(mzt)
+}
+
+
+normalized_exp <- read_relev_data("normalized_exp.csv")
+
+# for zebrafish:
+# MZT <- 3 
+MZT <- as.numeric(get_mzt())
+  
+
 
 # take the mature transcripts
 mature <- cbind(normalized_exp[,1:2], normalized_exp[,grep("transcript", colnames(normalized_exp))])
@@ -24,7 +46,7 @@ mature <- cbind(normalized_exp[,1:2], normalized_exp[,grep("transcript", colname
 # take the pre-mRNA
 precursor <- cbind(normalized_exp[,1:2], normalized_exp[,grep("precursor", colnames(normalized_exp))])
 
-MZT <- 3
+
 # ----------------------------------------------------------------------------------
 # 2.
 # this part is taking the three criteria 
@@ -182,4 +204,5 @@ exp_classified <- normalized_exp %>%
 
 saveRDS(exp_classified, file = "exp_df_classified.RDS")
 
-# write_csv(exp_classified, "exp_df_classified.csv")
+write_csv(exp_classified, "exp_df_classified.csv")
+

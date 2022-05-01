@@ -53,6 +53,7 @@ read_fpkm_files <- function(path) {
   
 }
 
+
 #' Title
 #' this function ask for the hours from the user including repetitions.
 #' change the files names in the list
@@ -80,10 +81,17 @@ fix_hours <- function(files_content) {
   
   if (length(sample_name) == (length(files_content))) {
     for (i in 1:length(sample_name)) {
-      names(files_content[[i]]) <- c(paste0("gene_", sample_name[i]), 
-                                     paste0("name_", sample_name[i]), 
-                                     paste0("transcript_", sample_name[i]), 
-                                     paste0("precursor_", sample_name[i]))
+      if (length(files_content[[i]]) == 3) {
+        names(files_content[[i]]) <- c(paste0("gene_", sample_name[i]), 
+                                       paste0("transcript_", sample_name[i]), 
+                                       paste0("precursor_", sample_name[i]))
+      }
+      else {
+        names(files_content[[i]]) <- c(paste0("gene_", sample_name[i]), 
+                                       paste0("name_", sample_name[i]), 
+                                       paste0("transcript_", sample_name[i]), 
+                                       paste0("precursor_", sample_name[i])) 
+      }
       files_content[[i]] <- files_content[[i]][order(files_content[[i]][,1]),]
     }
   } else {
@@ -146,17 +154,65 @@ is_include_repetitions <- function(hours) {
 #' @examples
 order_files2_tbl <- function(all_files) {
   
-  # read samples (hours) from the user
-  df_exp <- data.frame(Reduce(cbind, all_files)) %>%
-    select(-starts_with("gene"), -starts_with("name") ) %>%
-    add_column(name = all_files[[1]][,2], .before = 1) %>%
-    add_column(gene = all_files[[1]][,1], .before = 1) 
+  if (ncol(all_files[[1]]) == 4) {
+    
+    # read samples (hours) from the user
+    df_exp <- data.frame(Reduce(cbind, all_files)) %>%
+      select(-starts_with("gene"), -starts_with("name") ) %>%
+      add_column(name = all_files[[1]][,2], .before = 1) %>%
+      add_column(gene = all_files[[1]][,1], .before = 1) 
+    
+    df_ordered <- df_exp[,-c(1,2)]
+    df_ordered <- df_ordered[, mixedsort(sort(colnames(df_ordered)))]
+    full_df_ordered <- cbind(df_exp[,1:2],df_ordered)
+    
+  } else {
+    
+    # read samples (hours) from the user
+    df_exp <- data.frame(Reduce(cbind, all_files)) %>%
+      select(-starts_with("gene")) %>%
+      add_column(gene = all_files[[1]][,1], .before = 1) 
+    
+    df_ordered <- df_exp[,-c(1)]
+    df_ordered <- df_ordered[, mixedsort(sort(colnames(df_ordered)))]
+    full_df_ordered <- cbind(gene = df_exp[,1],df_ordered)
+    
+  }
   
-  df_ordered <- df_exp[,-c(1,2)]
-  df_ordered <- df_ordered[, mixedsort(sort(colnames(df_ordered)))]
-  full_df_ordered <- cbind(df_exp[,1:2],df_ordered)
   
   return(full_df_ordered)
+}
+
+
+#' Title
+#'
+#' @param result_tbl
+#'
+#' @return
+#' @export
+#'
+#' @examples
+add_gene_name2_rsem <- function(result_tbl) {
+  # read gff file 
+  gff_path <- readline(prompt = "Enter path of gff file: ")
+  gff <- read.delim(file = gff_path, skip = 1001, header = F)
+  genes_only <- gff %>% 
+    filter(V3 == "gene") %>%
+    select(V9)
+  
+  splited_info_genes <- strsplit(genes_only$V9, ";")
+  id_name <- (unlist(lapply(splited_info_genes, function(x) x[1:2])))
+  id <- gsub("ID=","",id_name[grep(pattern = "ID=", x = id_name)])
+  name <- gsub("Name=","",id_name[grep(pattern = "Name=", x = id_name)])
+  id_name_df <- data.frame(id,name)
+  
+  # add colum of name to results file
+  with_names <- result_tbl %>%
+    inner_join(id_name_df, by = c("gene" = "id")) %>%
+    select(-name) %>%
+    add_column(name = name, .before = 2) 
+    
+  return(with_names)
 }
 
 #' Title
@@ -205,7 +261,7 @@ write_csv <- function(tble, file_name) {
 #'
 #' @examples
 check_main1 <- function() {
-  path <- getwd()
+#  path <- getwd()
   
   file_list <- read_fpkm_files(path = path)
   hours_n_files <- fix_hours(file_list)
@@ -214,15 +270,21 @@ check_main1 <- function() {
   is_repetition <- is_include_repetitions(hs)
   full_exp_df <- order_files2_tbl(file_contetnt)
   
+  if (ncol(file_contetnt[[1]]) == 3) {
+    full_exp_df <- add_gene_name2_rsem(full_exp_df)
+  }
+  
   colnames(full_exp_df)[1] <- "gene_id"
   colnames(full_exp_df)[2] <- "gene_name"
+  full_exp_df <- full_exp_df[-which(full_exp_df$gene_id == "gene_id"),]
   genes_to_plot <- gene_names_from_user()
   write_csv(full_exp_df,"exp_df")
   return(list(full_exp_df, genes_to_plot))
   
-}
+}   
 
-# pre-mRNA and RNA dist plot ------------------------------------------------------------------
+
+# pre-mRNA and mRNA dist plot ------------------------------------------------------------------
 # 2.
 # this part is ploting an histogram for precursor and mature 
 # and also scatter plot with density
@@ -278,7 +340,7 @@ unify_precursor_mature <- function(exp_df) {
 take_max_exp_for_plot <- function(exp_df) {
   
   reorganized_df <- unify_precursor_mature(exp_df)
-  reorganized_df$max <- unlist(apply(reorganized_df %>% select(-"gene",-"name",-"type"), 1, max))
+  reorganized_df$max <- as.numeric(unlist(apply(reorganized_df %>% select(-"gene",-"name",-"type"), 1, max)))
   reorganized_df$max <- reorganized_df$max + 0.00000001
   reorganized_df$log <- log2(reorganized_df$max)
   reorganized_df$log[reorganized_df$log < -10 | reorganized_df$log == -Inf] <- -10
@@ -306,8 +368,8 @@ plot_exp_hist <- function(df) {
 
 pre_mat_max <- function(exp_df) {
   
-  exp_df$log_max_transcript <- log2(unlist(apply(exp_df %>% select(starts_with("transcript_")), 1, max)) + 0.00000001)
-  exp_df$log_max_precursor <- log2(unlist(apply(exp_df %>% select(starts_with("precursor_")), 1, max)) + 0.00000001)
+  exp_df$log_max_transcript <- log2(as.numeric(unlist(apply(exp_df %>% select(starts_with("transcript_")), 1, max))) + 0.00000001)
+  exp_df$log_max_precursor <- log2(as.numeric(unlist(apply(exp_df %>% select(starts_with("precursor_")), 1, max))) + 0.00000001)
   
   exp_df$log_max_transcript[exp_df$log_max_transcript < -10] <- -10
   exp_df$log_max_precursor[exp_df$log_max_precursor < -10] <- -10
@@ -349,7 +411,7 @@ check_main2 <- function() {
 }
 
 # ---------------------------------------------------------------------------------------------
-# 2.
+# 3.
 # this part should filter the genes taking only the most expressed genes
 # 50 percent of the top percent genes
 
@@ -375,7 +437,7 @@ filter_data <- function(full_df_ordered) {
   # order by the maximum expression (for filtering)
   ordered_mature <- mature[order(mature$max, decreasing = T),]
   
-  ordered_mature$log_on_max <- log2(ordered_mature$max)
+  ordered_mature$log_on_max <- log2(as.numeric(ordered_mature$max))
   ordered_mature$log_on_max[ordered_mature$log_on_max < -10] <- -10
   
   # remove rows of log2(fpkm)=-10 expression
@@ -417,7 +479,7 @@ check_main3 <- function() {
 
 
 # ------------------------------------------------------------------------------------------
-# 3.
+# 4.
 # normalize the expression 
 # minimum threshold
 
@@ -432,8 +494,9 @@ check_main3 <- function() {
 #' @examples
 normalize_exp <- function(filtered_dataset) {
   
-  log_expression <- filtered_dataset
-  log_expression[,-c(1,2)] <- log_expression[,-c(1,2)] + 0.1^7
+  log_expression <- data.frame(filtered_dataset)
+  as_numeric_exp <- as.data.frame(lapply(log_expression[,-c(1,2)], function(x) as.numeric(as.character(x))))
+  log_expression[,-c(1,2)] <- as_numeric_exp + 0.1^7
   log_expression[,-c(1,2)] <- log2(log_expression[,-c(1,2)])
   
   return(log_expression)
@@ -484,7 +547,7 @@ check_main4 <- function() {
 
 
 # --------------------------------------------------------------------------------------------
-# 4.
+# 5.
 # plot expression graphs for chosen genes
 
 # map_id_name <- read.table("map_gene_id_name.txt", header = TRUE)
@@ -603,7 +666,7 @@ check_main5 <- function() {
 
 
 # ---------------------------------------------------------------------------------------------
-# 5.
+# 6.
 # plot histograms for mature and precursors
 
 
@@ -678,7 +741,7 @@ check_main6 <- function() {
 
 
 # ---------------------------------------------------------------------------------------------
-# 6.
+# 7.
 # plot scatter plot for expression levels
 
 # function that creates scatter plots with density and abline
@@ -724,8 +787,9 @@ generate_scatter_plots <- function(mature, hours, pdf_name) {
 
 check_main7 <- function() {
   
-  # 0,0,2,2,4,4,6,6,6,6,8,8,8,8,12,12
-  # buc,eomesa,dazl,hmgb3b,btg4,tbxta,celf1,slbp2
+  # zhao - 0,0,2,2,4,4,6,6,6,6,8,8,8,8,12,12
+  # meyer - 2.5,2.5,2.5,3.3,3.3,3.3,4.5,4.5,4.5,5.3,5.3,5.3,10,10,10
+  # buc,eomesa,dazl,hmgb3b,btg4,tbxta,celf1,slbp2,eve1,sp5l,apoc2,actb2,ybx1,apoeb,dynll1
   exp_df <- check_main1()[[1]]
   exp_df_normal <- normalize_exp(exp_df)
   exp_only <- exp_df_normal[, -c(1,2)]
@@ -733,6 +797,8 @@ check_main7 <- function() {
   with_gene_names <- cbind(exp_df_normal[,c(1,2)], exp_only)
   
   mature <- extract_precursor_mature(with_gene_names)[[1]]
+  
+  hours <- gsub("precursor_|transcript_", "",names(mature)[-c(1,2)])
   
   generate_scatter_plots(mature, hours, "scatter_plots.pdf")
   

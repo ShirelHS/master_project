@@ -46,7 +46,14 @@ m_not_numeric <- apply(m0_matrix,1, stack)
 
 # this function is turning the hours, for stacked gene, into numeric
 hours_2_numeric <- function(gene){
-  gene$ind <- as.numeric(levels(gene$ind))[gene$ind]
+  if (is.factor(gene$ind)) {
+    gene$ind <- as.numeric(levels(gene$ind))[gene$ind]
+  }
+  else {
+    if (is.character(gene$ind)) {
+      gene$ind <- as.numeric(gene$ind)
+    }
+  }
   return(gene)
 }
 m_data <- lapply(m_not_numeric, hours_2_numeric)
@@ -72,7 +79,7 @@ m1_data <- m_data
 # it calculates linear models for each start degradation time 
 # it computes r square for each model to determine the best t1
 # it returns the gene with hours manipulated according to t1
-find_t1 <- function(gene, to_hour) {
+calc_t1 <- function(gene, to_hour) {
   
   best_t1 <- choose_t1(gene, to_hour)
   gene$ind[gene$ind < best_t1] <- best_t1
@@ -103,18 +110,6 @@ choose_t1 <- function(gene, to_hour) {
   
 }
 
-latest_t1 <- unique(m1_data[[1]]$ind)[(length(unique(m1_data[[1]]$ind)))-2]
-
-# for each gene- calculate the t1
-m2_data <- lapply(m1_data, function(x) find_t1(x, latest_t1))
-
-
-# model 3 data -----------------------------------------------------------------------
-# 5.
-# prepering data for M2 - complecated linear model
-# first find the best onset for each hour
-# second manipualate hours according to t1
-
 # calculate the linear model for a gene with expression per hours
 calculate_lm <- function(gene) {
   tmp_lm <- lm(values ~ ind, gene)
@@ -126,6 +121,18 @@ calculate_lm <- function(gene) {
   }
   return(list(tmp_lm,tmp_lm$fitted.values))
 }
+
+latest_t1 <- unique(m1_data[[1]]$ind)[(length(unique(m1_data[[1]]$ind)))-2]
+
+# for each gene- calculate the t1
+m2_data <- lapply(m1_data, function(x) calc_t1(x, latest_t1))
+
+
+# model 3 data -----------------------------------------------------------------------
+# 5.
+# prepering data for M2 - complecated linear model
+# first find the best onset for each hour
+# second manipualate hours according to t1
 
 # get a gene with expression and hours
 # calculate linear models for each start degradation time 
@@ -207,39 +214,47 @@ save(m3_data, file = "data_M3.rdata")
 # compute nested linear models to represent the degradation rates
 # option: flatten last few samples to permenant expression level 
 
-model_M0 <- lapply(m0_data, calculate_lm)
-model_M1 <- lapply(m1_data, calculate_lm)
-model_M2 <- lapply(m2_data, calculate_lm)
-model_M3 <- lapply(m3_data, calculate_lm)
+model_and_save <- function(m0_data, m1_data, m2_data, m3_data) {
+  
+  model_M0 <- lapply(m0_data, calculate_lm)
+  model_M1 <- lapply(m1_data, calculate_lm)
+  model_M2 <- lapply(m2_data, calculate_lm)
+  model_M3 <- lapply(m3_data, calculate_lm)
+  
+  # remove from the list genes that may have a slope > 0 from models lists and from data lists
+  # take the names of the genes that has a model null because of slope > 0
+  null_model_1 <- names(m1_data[unlist(lapply(1:length(model_M1), function(i) if(is.null(model_M1[[i]])) return(i)))])
+  null_model_2 <- names(m2_data[unlist(lapply(1:length(model_M2), function(i) if(is.null(model_M2[[i]])) return(i)))])
+  null_model_3 <- names(m3_data[unlist(lapply(1:length(model_M3), function(i) if(is.null(model_M3[[i]])) return(i)))])
+  
+  # intersect the names and remove from the models list and the data
+  gene_names_to_drop <- union(null_model_1, null_model_2)
+  if (is.null(gene_names_to_drop) == FALSE) {
+    model_M0 <- model_M0[names(model_M0) %in% gene_names_to_drop == FALSE]
+    model_M1 <- model_M1[names(model_M1) %in% gene_names_to_drop == FALSE]
+    model_M2 <- model_M2[names(model_M2) %in% gene_names_to_drop == FALSE]
+    model_M3 <- model_M3[names(model_M3) %in% gene_names_to_drop == FALSE]
+    
+    m0_data <- m0_data[names(m0_data) %in% gene_names_to_drop == FALSE]
+    m1_data <- m1_data[names(m1_data) %in% gene_names_to_drop == FALSE]
+    m2_data <- m2_data[names(m2_data) %in% gene_names_to_drop == FALSE]
+    m3_data <- m3_data[names(m3_data) %in% gene_names_to_drop == FALSE]
+    
+  }
+  
+  # save data for models
+  save(m0_data, file = "data_M0_wo_slope_gt_0.rdata")
+  save(m1_data, file = "data_M1_wo_slope_gt_0.rdata")
+  save(m2_data, file = "data_M2_wo_slope_gt_0.rdata")
+  save(m3_data, file = "data_M3_wo_slope_gt_0.rdata")
+  
+  save(model_M0, file = "model_M0.rdata")
+  save(model_M1, file = "model_M1.rdata")
+  save(model_M2, file = "model_M2.rdata")
+  save(model_M3, file = "model_M3.rdata")
+  
+}
 
-# remove from the list genes that may have a slope > 0 from models lists and from data lists
-# take the names of the genes that has a model null because of slope > 0
-null_model_1 <- names(m2_data[unlist(lapply(1:length(model_M1), function(i) if(is.null(model_M1[[i]])) return(i)))])
-null_model_2 <- names(m2_data[unlist(lapply(1:length(model_M2), function(i) if(is.null(model_M2[[i]])) return(i)))])
-null_model_3 <- names(m3_data[unlist(lapply(1:length(model_M3), function(i) if(is.null(model_M3[[i]])) return(i)))])
-
-# intersect the names and remove from the models list and the data
-gene_names_to_drop <- union(null_model_1, null_model_2)
-model_M0 <- model_M0[names(model_M0) %in% gene_names_to_drop == FALSE]
-model_M1 <- model_M1[names(model_M1) %in% gene_names_to_drop == FALSE]
-model_M2 <- model_M2[names(model_M2) %in% gene_names_to_drop == FALSE]
-model_M3 <- model_M3[names(model_M3) %in% gene_names_to_drop == FALSE]
-
-m0_data <- m0_data[names(m0_data) %in% gene_names_to_drop == FALSE]
-m1_data <- m1_data[names(m1_data) %in% gene_names_to_drop == FALSE]
-m2_data <- m2_data[names(m2_data) %in% gene_names_to_drop == FALSE]
-m3_data <- m3_data[names(m3_data) %in% gene_names_to_drop == FALSE]
-
-save(model_M0, file = "model_M0.rdata")
-save(model_M1, file = "model_M1.rdata")
-save(model_M2, file = "model_M2.rdata")
-save(model_M3, file = "model_M3.rdata")
-
-# save data for models
-save(m0_data, file = "data_M0_wo_slope_gt_0.rdata")
-save(m1_data, file = "data_M1_wo_slope_gt_0.rdata")
-save(m2_data, file = "data_M2_wo_slope_gt_0.rdata")
-save(m3_data, file = "data_M3_wo_slope_gt_0.rdata")
 
 
 # wilks test ---------------------------------------------------------------------
@@ -249,7 +264,18 @@ save(m3_data, file = "data_M3_wo_slope_gt_0.rdata")
 # calculate std for datasets with more than 1 repetition
 # std for specific gene and given hour
 std_specific_hour <- function(gene, h) {
-  indices <- which(gene$ind %in% h)
+  
+  if (is_include_repetitions(gene$ind)) {
+    indices <- which(gene$ind %in% h)
+  }
+  else {
+    indices <- which(gene$ind %in% h)
+    if (indices == length(gene$ind))
+      indices <- c(indices - 1, indices)
+    else
+      indices <- c(indices, indices + 1)
+  }
+  
   return(sqrt((sum((abs(gene$values[indices] - mean(gene$values[indices])))^2) / length(indices))))
   
 }
@@ -351,31 +377,37 @@ chi_test_3_comp <- function(gene, second_comp,model_x, model_y, model_z, model_q
 # this section run the wilks test and the chi square test
 # order results in dataframe
 
-# first comparison - model M0 vs. M1
-# for each gene, calculate the chi square distribution
-m0_vs_m1 <- unlist(lapply(names(m1_data), function(x) { chi_test_1_comp(m1_data[[x]], model_M0[[x]], model_M1[[x]], "M0", "M1")}))
+calc_pval_mod <- function(m1_data, model_M0, model_M1, model_M2, model_M3) {
 
-# compare M2 with the best model for each gene
-m_num_vs_m2 <- unlist(lapply(1:length(names(m1_data)), function(x) chi_test_2_comp(m1_data[[x]], m0_vs_m1[[x]], model_M0[[x]], model_M1[[x]], model_M2[[x]])))
-
-most_fitted_model <- data.frame(gene = names(m1_data), comp1 = m0_vs_m1, comp2 = m_num_vs_m2)
-
-most_fitted_model <- most_fitted_model %>%
-  mutate(first_comp_mod = derivedFactor("M1" = (comp1 < 0.05),"M0" = (comp1 >= 0.05),.method = "first",.default = NA)) %>%
-  mutate(second_comp_mod = derivedFactor("M1" = (comp1 < 0.05),"M0" = (comp1 >= 0.05),.method = "first",.default = NA))
-
-most_fitted_model <- most_fitted_model %>%
-  mutate(second_comp_mod = case_when((comp2 < 0.05) ~ "M2",
-                                     (comp2 >= 0.05) ~ as.character(first_comp_mod)))
-
-# compare M3 with the best model for each gene 
-m_num_vs_m3 <- unlist(lapply(1:length(names(m1_data)), function(x) chi_test_3_comp(m1_data[[x]], most_fitted_model$second_comp_mod[x], model_M0[[x]], model_M1[[x]], model_M2[[x]], model_M3[[x]])))
-
-most_fitted_model$comp3 <- m_num_vs_m3 
-most_fitted_model <- most_fitted_model %>% 
-  mutate(third_comp_mod = second_comp_mod) %>%
-  mutate(third_comp_mod = case_when((comp3 < 0.05) ~ "M3",
-                                    (comp3 >= 0.05) ~ as.character(second_comp_mod)))
+  # first comparison - model M0 vs. M1
+  # for each gene, calculate the chi square distribution
+  m0_vs_m1 <- unlist(lapply(names(m1_data), function(x) { chi_test_1_comp(m1_data[[x]], model_M0[[x]], model_M1[[x]], "M0", "M1")}))
+  
+  # compare M2 with the best model for each gene
+  m_num_vs_m2 <- unlist(lapply(1:length(names(m1_data)), function(x) chi_test_2_comp(m1_data[[x]], m0_vs_m1[[x]], model_M0[[x]], model_M1[[x]], model_M2[[x]])))
+  
+  most_fitted_model <- data.frame(gene = names(m1_data), comp1 = m0_vs_m1, comp2 = m_num_vs_m2)
+  
+  most_fitted_model <- most_fitted_model %>%
+    mutate(first_comp_mod = derivedFactor("M1" = (comp1 < 0.05),"M0" = (comp1 >= 0.05),.method = "first",.default = NA)) %>%
+    mutate(second_comp_mod = derivedFactor("M1" = (comp1 < 0.05),"M0" = (comp1 >= 0.05),.method = "first",.default = NA))
+  
+  most_fitted_model <- most_fitted_model %>%
+    mutate(second_comp_mod = case_when((comp2 < 0.05) ~ "M2",
+                                       (comp2 >= 0.05) ~ as.character(first_comp_mod)))
+  
+  # compare M3 with the best model for each gene 
+  m_num_vs_m3 <- unlist(lapply(1:length(names(m1_data)), function(x) chi_test_3_comp(m1_data[[x]], most_fitted_model$second_comp_mod[x], model_M0[[x]], model_M1[[x]], model_M2[[x]], model_M3[[x]])))
+  
+  most_fitted_model$comp3 <- m_num_vs_m3 
+  most_fitted_model <- most_fitted_model %>% 
+    mutate(third_comp_mod = second_comp_mod) %>%
+    mutate(third_comp_mod = case_when((comp3 < 0.05) ~ "M3",
+                                      (comp3 >= 0.05) ~ as.character(second_comp_mod)))
+  
+  return(most_fitted_model)
+  
+}
 
 
 
@@ -478,33 +510,34 @@ plot_parameter_hist <- function(param_vec, param_type) {
 plot_params_list <- function(list_parameters_per_gene) {
   
   B <- data.frame(x = as.numeric(unlist(list_parameters_per_gene$B)))
-  plot_B <- plot_parameter_hist(B, "B") 
+  half_life <- data.frame(x = log(2)/(-B$x))
+  plot_B <- plot_parameter_hist(half_life, "half life") 
   
-  t0 <- data.frame(x = as.numeric(unlist(list_parameters_per_gene$t0)), mod = unlist(list_parameters_per_gene$mod))
-  t0 <- t0 %>%
-    filter(mod == "M2" | mod == "M3") %>%
+  t0 <- data.frame(x = as.numeric(unlist(list_parameters_per_gene$t0)), mod = unlist(list_parameters_per_gene$mod)) %>%
     select(x)
+  # t0 <- t0 %>%
+  #   filter(mod == "M2" | mod == "M3") %>%
+  #   select(x)
   plot_t0 <- plot_parameter_hist(t0, "t0") 
   
-  t1 <- data.frame(x = as.numeric(unlist(list_parameters_per_gene$t1)), mod = unlist(list_parameters_per_gene$mod))
-  t1 <- t1 %>%
-    filter(mod == "M3") %>%
+  t1 <- data.frame(x = as.numeric(unlist(list_parameters_per_gene$t1)), mod = unlist(list_parameters_per_gene$mod)) %>%
     select(x)
+  # t1 <- t1 %>%
+  #   filter(mod == "M3") %>%
+  #   select(x)
   plot_t1 <- plot_parameter_hist(t1, "t1") 
   
-  x0 <- data.frame(x = as.numeric(unlist(list_parameters_per_gene$x0)), mod = unlist(list_parameters_per_gene$mod))
-  x0 <- x0 %>%
-    filter(mod == "M3" | mod == "M2" | mod == "M1" | mod == "M0") %>%
+  x0 <- data.frame(x = as.numeric(unlist(list_parameters_per_gene$x0)), mod = unlist(list_parameters_per_gene$mod)) %>%
     select(x)
   plot_x0 <- plot_parameter_hist(x0, "x0") 
   
   x1 <- data.frame(x = as.numeric(unlist(list_parameters_per_gene$x1)), mod = unlist(list_parameters_per_gene$mod))
   x1 <- x1 %>%
-    filter(mod == "M3" | mod == "M2") %>%
+    filter(mod == "M3") %>%
     select(x)
   plot_x1 <- plot_parameter_hist(x1, "x1") 
   
-  pdf(file = "parameters_graphs.pdf")
+  pdf(file = "parameters_graphs_m1.pdf")
   par(mfrow=c(2,2))
   
   plot(plot_B)
@@ -517,128 +550,89 @@ plot_params_list <- function(list_parameters_per_gene) {
   
 }
 
-# --------------------------------------------------------------------------------------------
+
+# goodness of fit test ----------------------------------------------------------------------------
+# 12.
+# this part checking goodness of fit by chi square test of squared error
 
 
-# take the first hour for genes starts to degrade after the fertilization
-onset_deg <- unlist(sapply(m2_data, function(x) return(x$ind[1])))
-
-# for models M0 fit "constant"
-# for models M1 or M2 with onset before MZT fit "early model"
-# for models M2 with onset after the MZT fit "late model"
-most_fitted_model <- most_fitted_model %>%
-  mutate(late_onset = onset_deg) %>%
-  mutate(model = case_when((second_comp_mod == "M0") ~ "constant",
-                           (second_comp_mod == "M1") ~ "early onset",
-                           (second_comp_mod == "M2" & late_onset > mzt) ~ "late onset",
-                           (second_comp_mod == "M2") ~ "early onset")) 
+# calculate standard score for each xij
+standard_score <- function(gene, index, vij_val_h) {
+  
+  std <- std_specific_hour(gene, gene$ind[index])
+  if (std == 0) {
+    std <- 0.001^3
+  }  
+  return((gene$values[index] - vij_val_h) / std)
+  
+}
 
 
-# save the models fitted for each gene
-to_save <- most_fitted_model[,c("gene","model")]
-saveRDS(to_save, file = "lm_fitted_calc.RDS")
+# this function sums the standard score
+sum_stand_score <- function(gene, model_fitted) {
+  
+  Xij <- unlist(lapply(1:nrow(gene), function(i) standard_score(gene, i, model_fitted[i])))
+  return(sum((Xij)^2))
+  
+}
 
 
-# plot distributions --------------------------------------------------------------
-# 10.
-# plot graphs - 
-# for counts of each linear group 
-# for late onset distribution
-# for half life distribution
+chi_sqr_goodness_of_fit <- function(statistic, dof) {
+  
+  chi_sqr_p_val <- pchisq(statistic, dof, lower.tail = TRUE)
+  return(chi_sqr_p_val)
+  
+}
 
-# plot the percentage of count of each model 
-ggplot(most_fitted_model, aes(model)) + geom_bar(position = "stack", aes(y = (..count..)/sum(..count..))) +
-  labs(title = "Linear Models", subtitle = "according to chi square test", x = "model", y = "percentage") + 
-  theme(text = element_text(size = 18))
+stat_chi_sqr <- function(gene, model_fitted) {
+  
+  stati <- sum_stand_score(gene, model_fitted)
+  return(chi_sqr_goodness_of_fit(stati, length((gene$ind))-1))
+  
+}
 
-
-# take only the late model genes 
-late_mod_genes <- most_fitted_model %>%
-  filter(model == "late onset")
-
-png(filename = "late_onset_dist.png")
-
-ggplot(late_mod_genes, aes(late_onset)) +
-  geom_histogram(binwidth = 0.25) +
-  labs(title = "Late Onset Time Distribution", x = "hpf", subtitle = paste0("starts from ", mzt, " hpf")) +
-  theme(text = element_text(size = 18))
-
-dev.off()
-
-# take only the early model genes 
-early_mod_genes <- most_fitted_model %>%
-  filter(second_comp_mod == "M2") %>%
-  select(late_onset) %>%
-  mutate(early_dist = late_onset)
-
-zero_onset <- most_fitted_model %>%
-  filter(second_comp_mod == "M1") %>%
-  mutate(early_dist = 0)
-
-# ??????????????????????????????????????????????????????????????????????????????
-# need to bind rows for early_mod_genes and zero_onset
+get_the_mod <- function(most_fitted_model, m1_data, model0, model1, model2, model3) {
+  mod_fitted <- m1_data
+  for (one_gene in names(m1_data)) {
+    
+    mod_tmp <- 
+      switch (most_fitted_model$third_comp_mod[most_fitted_model$gene == one_gene],
+              "M0" = {model0[[one_gene]]} , 
+              "M1" = {model1[[one_gene]]} , 
+              "M2" = {model2[[one_gene]]} , 
+              "M3" = {model3[[one_gene]]})
+    
+    mod_fitted[[one_gene]] <- list(m1_data[[one_gene]], mod_tmp)
+    
+  }
+  return(mod_fitted)
+}
 
 
-png(filename = "early_onset_dist.png")
-
-ggplot(early_mod_genes, aes(early_onset)) +
-  geom_histogram(binwidth = 0.25) +
-  labs(title = "Early Onset Time Distribution", x = "hpf", subtitle = paste0("ends at ", mzt, " hpf")) +
-  theme(text = element_text(size = 18))
-
-dev.off()
+apply_goodness_of_fit <- function(list_gene_mod) {
+  p_vals <- lapply(list_gene_mod, function(x) stat_chi_sqr(x[[1]],x[[2]][[2]]))
+  return(p_vals)
+}
 
 
-# half life calculation --------------------------------------------------------------
-# 11.
-# calculate half life for each gene and plot distribution
+models_list <- list(model_M0, model_M1, model_M2, model_M3)
 
-# take gene names for each model 
-m0_names <- most_fitted_model %>%
-  filter(model == "constant") %>%
-  select(gene)
+list_genes_mod <- get_the_mod(most_fitted_model, m1_data, model_M0, model_M1, model_M2, model_M3)
+pvalues <- data.frame(p.v = unlist(apply_goodness_of_fit(list_genes_mod)))
 
-m1_names <- most_fitted_model %>%
-  filter(model == "early onset") %>%
-  select(gene)
+pdf(file = "p_values_goodness_of_fit.pdf")
+par(mfrow=c(2,2))
 
-m2_names <- most_fitted_model %>%
-  filter(model == "late onset") %>%
-  select(gene)
-
-# choose for each gene its fitted model
-m0_mod <- model_M0[m0_names$gene]
-m1_mod <- model_M1[m1_names$gene]
-m2_mod <- model_M2[m2_names$gene]
-
-# get the intercept for model 0 for each gene
-df_mod0 <- data.frame(intercept = unlist(lapply(m0_mod, function(x) x[[1]][[1]][1])), 
-                      slope = 0) 
-row.names(df_mod0) <- gsub("\\.\\(Intercept\\)","",row.names(df_mod0))
-
-# get the intercept for model 1 for each gene
-df_mod1 <- data.frame(intercept = unlist(lapply(m1_mod, function(x) x[[1]][[1]][1])),
-                      slope = unlist(lapply(m1_mod, function(x) x[[1]][[1]][2])))
-row.names(df_mod1) <- gsub("\\.\\(Intercept\\)","",row.names(df_mod1))
-
-df_mod2 <- data.frame(intercept = unlist(lapply(m2_mod, function(x) x[[1]][[1]][1])),
-                      slope = unlist(lapply(m2_mod, function(x) x[[1]][[1]][2])))
-row.names(df_mod2) <- gsub("\\.\\(Intercept\\)","",row.names(df_mod2))
-
-# bind these three data frames of the 3 models to one data frame
-df_mods <- rbind(df_mod0, df_mod1, df_mod2)
-
-# calculate half life out of slope
-df_mods$half_life <- log(2)/(-df_mods$slope)
-df_mods$half_life[df_mods$half_life > 20] <- 20
-
-# plot half life distribution
-png(filename = "half_life_dist.png")
-
-ggplot(df_mods, aes(half_life)) +
-  geom_histogram(bins = 200) +  
-  xlim(0,max(df_mods$half_life[!is.na(df_mods$half_life)])) +
-  labs(title = "half life distribution", subtitle = "model 1 and 2") +
+ggplot(pvalues, aes(p.v)) + 
+  stat_bin(aes(y=..count../sum(..count..))) + 
+  labs(title = "p values - goodness of fit", y = "fraction of p values", x = "values") +
   theme(text = element_text(size = 18))
 
 dev.off()
+
+
+
+
+
+
+
