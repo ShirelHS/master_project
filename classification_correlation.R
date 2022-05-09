@@ -419,27 +419,6 @@ text(40,19.5, paste0("AUC: ", round(roc_m$auc,1), "%"), col = "red")
 text(40,15.5, paste0("AUC: ", round(roc_mz$auc,1), "%"), col = "green")
 text(40,11.5, paste0("AUC: ", round(roc_z$auc,1), "%"), col = "blue")
 
-
-# another representation of all sensitivities and specificities 
-sens_spec_to_plot <- sens_spec_df %>%
-  mutate(unite_pred = data_pred) %>%
-  mutate(unite_real = data_real) %>%
-  unite("datas_together" ,unite_pred:unite_real) %>%
-  mutate(specificity = 100 - specificity)
-  
-ggplot(sens_spec_to_plot, aes(x = specificity, y = sensitivity, color = datas_together, shape = class)) +
-  geom_jitter(size = 3.5) +
-  labs(title = "False vs. True Positive Percentage",
-       y = "true positive percentage",
-       x = "false positive percentage",
-       color = "dataset pairs",
-       shape = "classification") +
-  xlim(1,100) +
-  ylim(1,100) +
-  theme(plot.title = element_text(size = 20),
-        text = element_text(size = 16),# face = "bold"),
-        axis.title = element_text(size = 18))
-
   
 
 # plot roc againt Lior's classifications ---------------------------------------------------------------
@@ -458,6 +437,14 @@ roc_m <- roc(response = factor(ifelse(zhao_against_lior$lior_class == "M", "M", 
 roc_z <- roc(response = factor(ifelse(zhao_against_lior$lior_class == "Z", "Z", "non-Z"), ordered = TRUE), 
              predictor = factor(ifelse(zhao_against_lior$classification == "Z", "Z", "non-Z"), ordered = TRUE), 
              percent = TRUE, auc = TRUE)
+
+sens_spec_df <- rbind(sens_spec_df, 
+                      data.frame(sensitivity = c(roc_m$sensitivities[2], roc_z$sensitivities[2]), 
+                                 specificity = c(roc_m$specificities[2], roc_z$specificities[2]), 
+                                 data_pred = rep("Zhao", 2), 
+                                 data_real = rep("Lior", 2), 
+                                 class = c("M", "Z")))
+
 
 # roc_mz <- roc(response = factor(ifelse(zhao_against_lior$lior_class == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
 #               predictor = factor(ifelse(zhao_against_lior$classification == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
@@ -486,6 +473,13 @@ roc_z <- roc(response = factor(ifelse(pauli_against_lior$lior_class == "Z", "Z",
              predictor = factor(ifelse(pauli_against_lior$classification == "Z", "Z", "non-Z"), ordered = TRUE), 
              percent = TRUE, auc = TRUE)
 
+sens_spec_df <- rbind(sens_spec_df, 
+                      data.frame(sensitivity = c(roc_m$sensitivities[2], roc_z$sensitivities[2]), 
+                                 specificity = c(roc_m$specificities[2], roc_z$specificities[2]), 
+                                 data_pred = rep("Pauli", 2), 
+                                 data_real = rep("Lior", 2), 
+                                 class = c("M", "Z")))
+
 # roc_mz <- roc(response = factor(ifelse(pauli_against_lior$lior_class == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
 #               predictor = factor(ifelse(pauli_against_lior$classification == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
 #               percent = TRUE, auc = TRUE)
@@ -512,6 +506,13 @@ roc_z <- roc(response = factor(ifelse(meyer_against_lior$lior_class == "Z", "Z",
              predictor = factor(ifelse(meyer_against_lior$classification == "Z", "Z", "non-Z"), ordered = TRUE), 
              percent = TRUE, auc = TRUE)
 
+sens_spec_df <- rbind(sens_spec_df, 
+                      data.frame(sensitivity = c(roc_m$sensitivities[2], roc_z$sensitivities[2]), 
+                                 specificity = c(roc_m$specificities[2], roc_z$specificities[2]), 
+                                 data_pred = rep("Meyer", 2), 
+                                 data_real = rep("Lior", 2), 
+                                 class = c("M", "Z")))
+
 par(pty = "s")
 plot(roc_m, col = "red", legacy.axes = TRUE, xlab = "False Positive Percentage", ylab = "True Positive Percentage", 
      main = "ROC - Meyer against Liors classes (as the real class)", cex.main = 1.5, cex.lab = 1.5, cex.axis = 1.2, lwd = 3) 
@@ -534,6 +535,13 @@ roc_z <- roc(response = factor(ifelse(medina_against_lior$lior_class == "Z", "Z"
              predictor = factor(ifelse(medina_against_lior$classification == "Z", "Z", "non-Z"), ordered = TRUE), 
              percent = TRUE, auc = TRUE)
 
+sens_spec_df <- rbind(sens_spec_df, 
+                      data.frame(sensitivity = c(roc_m$sensitivities[2], roc_z$sensitivities[2]), 
+                                 specificity = c(roc_m$specificities[2], roc_z$specificities[2]), 
+                                 data_pred = rep("Medina", 2), 
+                                 data_real = rep("Lior", 2), 
+                                 class = c("M", "Z")))
+
 par(pty = "s")
 plot(roc_m, col = "red", legacy.axes = TRUE, xlab = "False Positive Percentage", ylab = "True Positive Percentage", 
      main = "ROC - Medina against Liors classes (as the real class)", cex.main = 1.5, cex.lab = 1.5, cex.axis = 1.2, lwd = 3) 
@@ -542,6 +550,7 @@ legend("bottomright", c("maternal", "zygotic"), lty=1,
        col = c("red", "blue"), bty="n", inset=c(0,0.10), lwd = 3)
 text(30,15.5, paste0("AUC: ", round(roc_m$auc,1), "%"), col = "red")
 text(30,11.5, paste0("AUC: ", round(roc_z$auc,1), "%"), col = "blue")
+
 
 
 
@@ -590,6 +599,13 @@ roc_mz <- roc(response = factor(ifelse(combined_zhao_subset$class_real == "MZ", 
               predictor = factor(ifelse(combined_zhao_subset$prediction_zhao == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
               percent = TRUE, auc = TRUE)
 
+sens_spec_df <- rbind(sens_spec_df, 
+                      data.frame(sensitivity = c(roc_m$sensitivities[2], roc_mz$sensitivities[2], roc_z$sensitivities[2]), 
+                                 specificity = c(roc_m$specificities[2], roc_mz$specificities[2], roc_z$specificities[2]), 
+                                 data_pred = rep("Zhao", 3), 
+                                 data_real = rep("Subset", 3), 
+                                 class = c("M", "MZ", "Z")))
+
 par(pty = "s")
 plot(roc_m, col = "red", legacy.axes = TRUE, xlab = "False Positive Percentage", ylab = "True Positive Percentage", 
      main = "ROC - Zhao Against Subset of Known Classificated genes", cex.main = 1.5, cex.lab = 1.5, cex.axis = 1.2, lwd = 3) 
@@ -619,6 +635,13 @@ roc_z <- roc(response = factor(ifelse(combined_pauli_subset$class_real == "Z", "
 roc_mz <- roc(response = factor(ifelse(combined_pauli_subset$class_real == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
               predictor = factor(ifelse(combined_pauli_subset$prediction_pauli == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
               percent = TRUE, auc = TRUE)
+
+sens_spec_df <- rbind(sens_spec_df, 
+                      data.frame(sensitivity = c(roc_m$sensitivities[2], roc_mz$sensitivities[2], roc_z$sensitivities[2]), 
+                                 specificity = c(roc_m$specificities[2], roc_mz$specificities[2], roc_z$specificities[2]), 
+                                 data_pred = rep("Pauli", 3), 
+                                 data_real = rep("Subset", 3), 
+                                 class = c("M", "MZ", "Z")))
 
 par(pty = "s")
 plot(roc_m, col = "red", legacy.axes = TRUE, xlab = "False Positive Percentage", ylab = "True Positive Percentage", 
@@ -650,6 +673,13 @@ roc_mz <- roc(response = factor(ifelse(combined_meyer_subset$class_real == "MZ",
               predictor = factor(ifelse(combined_meyer_subset$prediction_meyer == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
               percent = TRUE, auc = TRUE)
 
+sens_spec_df <- rbind(sens_spec_df, 
+                      data.frame(sensitivity = c(roc_m$sensitivities[2], roc_mz$sensitivities[2], roc_z$sensitivities[2]), 
+                                 specificity = c(roc_m$specificities[2], roc_mz$specificities[2], roc_z$specificities[2]), 
+                                 data_pred = rep("Meyer", 3), 
+                                 data_real = rep("Subset", 3), 
+                                 class = c("M", "MZ", "Z")))
+
 par(pty = "s")
 plot(roc_m, col = "red", legacy.axes = TRUE, xlab = "False Positive Percentage", ylab = "True Positive Percentage", 
      main = "ROC - Meyer Against Subset of Known Classificated genes", cex.main = 1.5, cex.lab = 1.5, cex.axis = 1.2, lwd = 3) 
@@ -680,6 +710,13 @@ roc_mz <- roc(response = factor(ifelse(combined_medina_subset$class_real == "MZ"
               predictor = factor(ifelse(combined_medina_subset$prediction_medina == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
               percent = TRUE, auc = TRUE)
 
+sens_spec_df <- rbind(sens_spec_df, 
+                      data.frame(sensitivity = c(roc_m$sensitivities[2], roc_mz$sensitivities[2], roc_z$sensitivities[2]), 
+                                 specificity = c(roc_m$specificities[2], roc_mz$specificities[2], roc_z$specificities[2]), 
+                                 data_pred = rep("Medina", 3), 
+                                 data_real = rep("Subset", 3), 
+                                 class = c("M", "MZ", "Z")))
+
 par(pty = "s")
 plot(roc_m, col = "red", legacy.axes = TRUE, xlab = "False Positive Percentage", ylab = "True Positive Percentage", 
      main = "ROC - Medina Against Subset of Known Classificated genes", cex.main = 1.5, cex.lab = 1.5, cex.axis = 1.2, lwd = 3) 
@@ -692,8 +729,28 @@ text(40,15.5, paste0("AUC: ", round(roc_mz$auc,1), "%"), col = "green")
 text(40,11.5, paste0("AUC: ", round(roc_z$auc,1), "%"), col = "blue")
 
 
+# another representation of all sensitivities and specificities
+sens_spec_to_plot <- sens_spec_df %>%
+  mutate(unite_pred = data_pred) %>%
+  mutate(unite_real = data_real) %>%
+  unite("datas_together" ,unite_pred:unite_real) %>%
+  mutate(specificity = 100 - specificity)
 
-
+library(RColorBrewer)
+getPalette <- colorRampPalette(brewer.pal(14, "Set1"))
+ggplot(sens_spec_to_plot, aes(x = specificity, y = sensitivity, color = datas_together, shape = class)) +
+  geom_jitter(size = 3.5) +
+  labs(title = "False vs. True Positive Percentage",
+       y = "true positive percentage",
+       x = "false positive percentage",
+       color = "dataset pairs",
+       shape = "classification") +
+  xlim(-1,100) +
+  ylim(-1,100) +
+  theme(plot.title = element_text(size = 20),
+        text = element_text(size = 16),# face = "bold"),
+        axis.title = element_text(size = 18)) +
+  scale_color_manual(values = getPalette(14))
 
 
 
