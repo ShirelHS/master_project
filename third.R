@@ -144,6 +144,9 @@ choose_t1_t2 <- function(gene, last_hour) {
 # the statistics
 calculate_LR <- function(gene, model_x, model_y) {
   # model_x[[2]] are the fitted values
+  if (is.null(model_x) || is.null(model_y))
+    return(NA)
+  
   return(-2*(as.numeric(logLik(model_x)) - as.numeric(logLik(model_y))))
   
 }
@@ -372,7 +375,9 @@ std_specific_hour <- function(gene, h) {
       indices <- c(indices, indices + 1)
   }
   
-  return(sqrt((sum((abs(gene$values[indices] - mean(gene$values[indices])))^2) / (length(indices)-1))))
+  return(sd(gene$values[indices]))
+
+  #  return(sqrt((sum((abs(gene$values[indices] - mean(gene$values[indices])))^2) / (length(indices)-1))))
   
 }
 
@@ -380,18 +385,11 @@ std_specific_hour <- function(gene, h) {
 standard_score <- function(gene, index, vij_val_h) {
   
   std <- std_specific_hour(gene, gene$ind[index])
-  if (std < 0.75) {
-    std <- 0.75
+  if (std < 0.01) {
+    std <- 0.01
   }  
   return((gene$values[index] - vij_val_h) / std)
   
-}
-
-dof_gof_calc <- function(gene, mod) {
-  
-  observe_num <- length((gene$ind))
-  param_number <- dof_one_model(mod) + 1
-  return(observe_num - param_number)
 }
 
 # this function sums the standard score
@@ -402,18 +400,10 @@ sum_stand_score <- function(gene, model_fitted) {
   
 }
 
-# param_num <- function(mod) {
-#   param_number <- dof_one_model(mod) 
-#   if (param_number == 5) {
-#     param_number <- 4
-#   }
-#   return(param_number)
-# }
-
 stat_chi_sqr <- function(gene, model_fitted, mod) {
   
   stati <- sum_stand_score(gene, model_fitted)
-  return(chi_sqr_goodness_of_fit(stati, dof_gof_calc(gene, mod)))
+  return(chi_sqr_goodness_of_fit(stati, nrow(gene)))
   
 }
 
@@ -425,7 +415,9 @@ chi_sqr_goodness_of_fit <- function(statistic, dof) {
 }
 
 apply_goodness_of_fit <- function(list_gene_mod) {
-  p_vals <- lapply(list_gene_mod, function(x) stat_chi_sqr(x[[1]],x[[2]][[2]], x[[3]]))
+  p_vals <- lapply(list_gene_mod, function(x) stat_chi_sqr(x[[1]],
+                                                           x[[2]][[2]], 
+                                                           x[[3]]))
   return(p_vals)
 }
 
@@ -501,19 +493,22 @@ model_and_save <- function(m0_data, m1_data, m2_data, m3_data) {
   null_model_2 <- names(m2_data[unlist(lapply(1:length(model_M2), function(i) if(is.null(model_M2[[i]])) return(i)))])
   null_model_3 <- names(m3_data[unlist(lapply(1:length(model_M3), function(i) if(is.null(model_M3[[i]])) return(i)))])
   
-  # intersect the names and remove from the models list and the data
-  gene_names_to_drop <- union(null_model_1, null_model_2)
-  if (is.null(gene_names_to_drop) == FALSE) {
-    model_M0 <- model_M0[names(model_M0) %in% gene_names_to_drop == FALSE]
-    model_M1 <- model_M1[names(model_M1) %in% gene_names_to_drop == FALSE]
-    model_M2 <- model_M2[names(model_M2) %in% gene_names_to_drop == FALSE]
-    model_M3 <- model_M3[names(model_M3) %in% gene_names_to_drop == FALSE]
+  if ((length(null_model_1) > 0) || (length(null_model_2) > 0) || (length(null_model_3) > 0)) {
     
-    m0_data <- m0_data[names(m0_data) %in% gene_names_to_drop == FALSE]
-    m1_data <- m1_data[names(m1_data) %in% gene_names_to_drop == FALSE]
-    m2_data <- m2_data[names(m2_data) %in% gene_names_to_drop == FALSE]
-    m3_data <- m3_data[names(m3_data) %in% gene_names_to_drop == FALSE]
-    
+    # intersect the names and remove from the models list and the data
+    gene_names_to_drop <- union(union(null_model_1, null_model_2), null_model_3)
+    if (is.null(gene_names_to_drop) == FALSE) {
+      model_M0 <- model_M0[names(model_M0) %in% gene_names_to_drop == FALSE]
+      model_M1 <- model_M1[names(model_M1) %in% gene_names_to_drop == FALSE]
+      model_M2 <- model_M2[names(model_M2) %in% gene_names_to_drop == FALSE]
+      model_M3 <- model_M3[names(model_M3) %in% gene_names_to_drop == FALSE]
+      
+      m0_data <- m0_data[names(m0_data) %in% gene_names_to_drop == FALSE]
+      m1_data <- m1_data[names(m1_data) %in% gene_names_to_drop == FALSE]
+      m2_data <- m2_data[names(m2_data) %in% gene_names_to_drop == FALSE]
+      m3_data <- m3_data[names(m3_data) %in% gene_names_to_drop == FALSE]
+      
+    }
   }
   
   # save data for models
