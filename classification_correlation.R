@@ -93,41 +93,85 @@ diff_combs <- class_genes_inner %>%
           mutate(class_2 = paste0('class_meyer_', class_meyer)) %>%
           select(-class_meyer,-class_pauli)) %>%
   rbind(class_genes_inner %>% 
+          count(class_pauli, class_medina) %>%
+          mutate(class_1 = paste0('class_pauli_', class_pauli)) %>%
+          mutate(class_2 = paste0('class_medina_', class_medina)) %>%
+          select(-class_pauli,-class_medina)) %>%
+  rbind(class_genes_inner %>% 
+          count(class_pauli, class_zhao) %>%
+          mutate(class_1 = paste0('class_pauli_', class_pauli)) %>%
+          mutate(class_2 = paste0('class_zhao_', class_zhao)) %>%
+          select(-class_pauli,-class_zhao)) %>%
+  rbind(class_genes_inner %>% 
         count(class_meyer, class_medina) %>%
         mutate(class_1 = paste0('class_meyer_', class_meyer)) %>%
         mutate(class_2 = paste0('class_medina_', class_medina)) %>%
         select(-class_meyer,-class_medina)) %>%
   rbind(class_genes_inner %>% 
-          count(class_pauli, class_medina) %>%
-          mutate(class_1 = paste0('class_pauli_', class_pauli)) %>%
-          mutate(class_2 = paste0('class_medina_', class_medina)) %>%
-          select(-class_pauli,-class_medina))
-
+          count(class_meyer, class_zhao) %>%
+          mutate(class_1 = paste0('class_meyer_', class_meyer)) %>%
+          mutate(class_2 = paste0('class_zhao_', class_zhao)) %>%
+          select(-class_meyer,-class_zhao)) %>%
+  rbind(class_genes_inner %>% 
+          count(class_meyer, class_pauli) %>%
+          mutate(class_1 = paste0('class_meyer_', class_meyer)) %>%
+          mutate(class_2 = paste0('class_pauli_', class_pauli)) %>%
+          select(-class_meyer,-class_pauli)) %>%
+  rbind(class_genes_inner %>% 
+          count(class_medina, class_pauli) %>%
+          mutate(class_1 = paste0('class_medina_', class_medina)) %>%
+          mutate(class_2 = paste0('class_pauli_', class_pauli)) %>%
+          select(-class_medina,-class_pauli)) %>%
+  rbind(class_genes_inner %>% 
+          count(class_medina, class_zhao) %>%
+          mutate(class_1 = paste0('class_medina_', class_medina)) %>%
+          mutate(class_2 = paste0('class_zhao_', class_zhao)) %>%
+          select(-class_medina,-class_zhao)) %>%
+  rbind(class_genes_inner %>% 
+          count(class_medina, class_meyer) %>%
+          mutate(class_1 = paste0('class_medina_', class_medina)) %>%
+          mutate(class_2 = paste0('class_meyer_', class_meyer)) %>%
+          select(-class_medina,-class_meyer))
+  
 
 all_combs <- rbind(same_combs, diff_combs) %>%
   mutate(dataset_1 = gsub("_M|_MZ|_Z|_NONE|_NA", "", class_1)) %>%
-  mutate(dataset_2 = gsub("_M|_MZ|_Z|_NONE|_NA", "", class_2)) 
+  mutate(dataset_2 = gsub("_M|_MZ|_Z|_NONE|_NA", "", class_2)) %>%
+  mutate(class_ds1 = gsub(".*_","", class_1)) %>%
+  mutate(class_ds2 = gsub(".*_","", class_2)) 
 
 all_combs_summ <- all_combs %>%
   mutate(dataset_1 = gsub("_M|_MZ|_Z|_NONE|_NA", "", class_1)) %>%
   mutate(dataset_2 = gsub("_M|_MZ|_Z|_NONE|_NA", "", class_2)) %>%
-  group_by(dataset_1, dataset_2) %>%
-  summarise(summ = sum(n))
+  group_by(dataset_1, dataset_2, class_ds1) %>%
+  mutate(sum_1 = sum(n)) %>% 
+  ungroup() %>%
+  group_by(dataset_1, dataset_2, class_ds2) %>%
+  mutate(sum_2 = sum(n)) %>%
+  as.data.frame()
+
+# all_combs_pc <- all_combs %>%
+#   full_join(all_combs_summ) %>%
+#   mutate(percent = round(n / summ * 100, 2))
 
 all_combs_pc <- all_combs %>%
   full_join(all_combs_summ) %>%
-  mutate(percent = round(n / summ * 100, 2))
+  mutate(pc_1 = round(n / sum_1 * 100, 2)) 
 
-ggplot(all_combs_pc, aes(class_1, class_2, fill = percent)) +
-  geom_tile() +
-  geom_text(aes(label = percent), color = 'white') +
+all_combs_pc$class_1 <- factor(all_combs_pc$class_1)
+all_combs_pc$class_2 <- factor(all_combs_pc$class_2)
+
+ggplot(all_combs_pc, aes(class_1, class_2, fill = pc_1)) +
+  geom_tile(colour="white", size=0.25) +
+  geom_text(aes(label = pc_1), color = 'white') +
   theme_bw() + 
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
   labs(title = "Common Classification Between each Two Datasets",
-       subtitle = "percentage representation") +
+       subtitle = "percentage representation",
+       fill = "percent") +
   theme(text = element_text(size = 16)) +
   theme(plot.title = element_text(size = 20, face = "bold"),
-        axis.text = element_text(size = 16),
+        axis.text = element_text(size = 16, face = "bold"),
         axis.title = element_text(size = 18, face = "bold"))
 
 
@@ -156,6 +200,12 @@ roc_z <- roc(response = factor(ifelse(combined_medina_meyer$real == "Z", "Z", "n
 roc_mz <- roc(response = factor(ifelse(combined_medina_meyer$real == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
              predictor = factor(ifelse(combined_medina_meyer$prediction_medina == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
              percent = TRUE, auc = TRUE)
+
+sens_spec_df <- data.frame(sensitivity = c(roc_m$sensitivities[2], roc_mz$sensitivities[2], roc_z$sensitivities[2]), 
+                           specificity = c(roc_m$specificities[2], roc_mz$specificities[2], roc_z$specificities[2]), 
+                           data_pred = rep("Medina", 3), 
+                           data_real = rep("Meyer", 3), 
+                           class = c("M", "MZ", "Z"))
 
 par(pty = "s")
 plot(roc_m, col = "red", legacy.axes = TRUE, xlab = "False Positive Percentage", ylab = "True Positive Percentage", 
@@ -191,6 +241,13 @@ roc_mz <- roc(response = factor(ifelse(combined_zhao_medina$real == "MZ", "MZ", 
               predictor = factor(ifelse(combined_zhao_medina$prediction_zhao == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
               percent = TRUE, auc = TRUE)
 
+sens_spec_df <- rbind(sens_spec_df, 
+                      data.frame(sensitivity = c(roc_m$sensitivities[2], roc_mz$sensitivities[2], roc_z$sensitivities[2]), 
+                                 specificity = c(roc_m$specificities[2], roc_mz$specificities[2], roc_z$specificities[2]), 
+                                 data_pred = rep("Zhao", 3), 
+                                 data_real = rep("Medina", 3), 
+                                 class = c("M", "MZ", "Z")))
+
 par(pty = "s")
 plot(roc_m, col = "red", legacy.axes = TRUE, xlab = "False Positive Percentage", ylab = "True Positive Percentage", 
      main = "ROC - Zhao against Medina (as the real class)", cex.main = 1.5, cex.lab = 1.5, cex.axis = 1.2, lwd = 3) 
@@ -223,6 +280,13 @@ roc_z <- roc(response = factor(ifelse(combined_zhao_meyer$real == "Z", "Z", "non
 roc_mz <- roc(response = factor(ifelse(combined_zhao_meyer$real == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
               predictor = factor(ifelse(combined_zhao_meyer$prediction_zhao == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
               percent = TRUE, auc = TRUE)
+
+sens_spec_df <- rbind(sens_spec_df, 
+                      data.frame(sensitivity = c(roc_m$sensitivities[2], roc_mz$sensitivities[2], roc_z$sensitivities[2]), 
+                                 specificity = c(roc_m$specificities[2], roc_mz$specificities[2], roc_z$specificities[2]), 
+                                 data_pred = rep("Zhao", 3), 
+                                 data_real = rep("Meyer", 3), 
+                                 class = c("M", "MZ", "Z")))
 
 par(pty = "s")
 plot(roc_m, col = "red", legacy.axes = TRUE, xlab = "False Positive Percentage", ylab = "True Positive Percentage", 
@@ -257,6 +321,13 @@ roc_mz <- roc(response = factor(ifelse(combined_zhao_pauli$real == "MZ", "MZ", "
               predictor = factor(ifelse(combined_zhao_pauli$prediction_zhao == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
               percent = TRUE, auc = TRUE)
 
+sens_spec_df <- rbind(sens_spec_df, 
+                      data.frame(sensitivity = c(roc_m$sensitivities[2], roc_mz$sensitivities[2], roc_z$sensitivities[2]), 
+                                 specificity = c(roc_m$specificities[2], roc_mz$specificities[2], roc_z$specificities[2]), 
+                                 data_pred = rep("Zhao", 3), 
+                                 data_real = rep("Pauli", 3), 
+                                 class = c("M", "MZ", "Z")))
+
 par(pty = "s")
 plot(roc_m, col = "red", legacy.axes = TRUE, xlab = "False Positive Percentage", ylab = "True Positive Percentage", 
      main = "ROC - Zhao against Pauli (as the real class)", cex.main = 1.5, cex.lab = 1.5, cex.axis = 1.2, lwd = 3) 
@@ -268,6 +339,108 @@ text(40,19.5, paste0("AUC: ", round(roc_m$auc,1), "%"), col = "red")
 text(40,15.5, paste0("AUC: ", round(roc_mz$auc,1), "%"), col = "green")
 text(40,11.5, paste0("AUC: ", round(roc_z$auc,1), "%"), col = "blue")
 
+
+# medina vs. pauli, while medina is the 'predicted' and pauli as the 'real'
+
+combined_medina_pauli <- medina_classified %>% 
+  rename(prediction_medina = classification) %>%
+  inner_join(pauli_classified %>% 
+               rename(real = classification) %>% 
+               select(gene_id,real), 
+             by = c("gene_id" = "gene_id"))
+
+roc_m <- roc(response = factor(ifelse(combined_medina_pauli$real == "M", "M", "non-M"), ordered = TRUE), 
+             predictor = factor(ifelse(combined_medina_pauli$prediction_medina == "M", "M", "non-M"), ordered = TRUE), 
+             percent = TRUE, auc = TRUE)
+
+roc_z <- roc(response = factor(ifelse(combined_medina_pauli$real == "Z", "Z", "non-Z"), ordered = TRUE), 
+             predictor = factor(ifelse(combined_medina_pauli$prediction_medina == "Z", "Z", "non-Z"), ordered = TRUE), 
+             percent = TRUE, auc = TRUE)
+
+roc_mz <- roc(response = factor(ifelse(combined_medina_pauli$real == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
+              predictor = factor(ifelse(combined_medina_pauli$prediction_medina == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
+              percent = TRUE, auc = TRUE)
+
+sens_spec_df <- rbind(sens_spec_df, 
+                      data.frame(sensitivity = c(roc_m$sensitivities[2], roc_mz$sensitivities[2], roc_z$sensitivities[2]), 
+                                 specificity = c(roc_m$specificities[2], roc_mz$specificities[2], roc_z$specificities[2]), 
+                                 data_pred = rep("Medina", 3), 
+                                 data_real = rep("Pauli", 3), 
+                                 class = c("M", "MZ", "Z")))
+
+par(pty = "s")
+plot(roc_m, col = "red", legacy.axes = TRUE, xlab = "False Positive Percentage", ylab = "True Positive Percentage", 
+     main = "ROC - Medina against Pauli (as the real class)", cex.main = 1.5, cex.lab = 1.5, cex.axis = 1.2, lwd = 3) 
+plot(roc_mz, col = "green", add = TRUE, lwd = 3)
+plot(roc_z, col = "blue", add = TRUE, lwd = 3)
+legend("bottomright", c("maternal", "maternal-zygotic", "zygotic"), lty=1, 
+       col = c("red", "green", "blue"), bty="n", inset=c(0,0.10), lwd = 3)
+text(40,19.5, paste0("AUC: ", round(roc_m$auc,1), "%"), col = "red")
+text(40,15.5, paste0("AUC: ", round(roc_mz$auc,1), "%"), col = "green")
+text(40,11.5, paste0("AUC: ", round(roc_z$auc,1), "%"), col = "blue")
+
+
+# pauli vs. meyer, while pauli is the 'predicted' and meyer as the 'real'
+
+combined_pauli_meyer <- pauli_classified %>% 
+  rename(prediction_pauli = classification) %>%
+  inner_join(meyer_classified %>% 
+               rename(real = classification) %>% 
+               select(gene_id,real), 
+             by = c("gene_id" = "gene_id"))
+
+roc_m <- roc(response = factor(ifelse(combined_pauli_meyer$real == "M", "M", "non-M"), ordered = TRUE), 
+             predictor = factor(ifelse(combined_pauli_meyer$prediction_pauli == "M", "M", "non-M"), ordered = TRUE), 
+             percent = TRUE, auc = TRUE)
+
+roc_z <- roc(response = factor(ifelse(combined_pauli_meyer$real == "Z", "Z", "non-Z"), ordered = TRUE), 
+             predictor = factor(ifelse(combined_pauli_meyer$prediction_pauli == "Z", "Z", "non-Z"), ordered = TRUE), 
+             percent = TRUE, auc = TRUE)
+
+roc_mz <- roc(response = factor(ifelse(combined_pauli_meyer$real == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
+              predictor = factor(ifelse(combined_pauli_meyer$prediction_pauli == "MZ", "MZ", "non-MZ"), ordered = TRUE), 
+              percent = TRUE, auc = TRUE)
+
+sens_spec_df <- rbind(sens_spec_df, 
+                      data.frame(sensitivity = c(roc_m$sensitivities[2], roc_mz$sensitivities[2], roc_z$sensitivities[2]), 
+                                 specificity = c(roc_m$specificities[2], roc_mz$specificities[2], roc_z$specificities[2]), 
+                                 data_pred = rep("Pauli", 3), 
+                                 data_real = rep("Meyer", 3), 
+                                 class = c("M", "MZ", "Z")))
+
+par(pty = "s")
+plot(roc_m, col = "red", legacy.axes = TRUE, xlab = "False Positive Percentage", ylab = "True Positive Percentage", 
+     main = "ROC - Pauli against Meyer (as the real class)", cex.main = 1.5, cex.lab = 1.5, cex.axis = 1.2, lwd = 3) 
+plot(roc_mz, col = "green", add = TRUE, lwd = 3)
+plot(roc_z, col = "blue", add = TRUE, lwd = 3)
+legend("bottomright", c("maternal", "maternal-zygotic", "zygotic"), lty=1, 
+       col = c("red", "green", "blue"), bty="n", inset=c(0,0.10), lwd = 3)
+text(40,19.5, paste0("AUC: ", round(roc_m$auc,1), "%"), col = "red")
+text(40,15.5, paste0("AUC: ", round(roc_mz$auc,1), "%"), col = "green")
+text(40,11.5, paste0("AUC: ", round(roc_z$auc,1), "%"), col = "blue")
+
+
+# another representation of all sensitivities and specificities 
+sens_spec_to_plot <- sens_spec_df %>%
+  mutate(unite_pred = data_pred) %>%
+  mutate(unite_real = data_real) %>%
+  unite("datas_together" ,unite_pred:unite_real) %>%
+  mutate(specificity = 100 - specificity)
+  
+ggplot(sens_spec_to_plot, aes(x = specificity, y = sensitivity, color = datas_together, shape = class)) +
+  geom_jitter(size = 3.5) +
+  labs(title = "False vs. True Positive Percentage",
+       y = "true positive percentage",
+       x = "false positive percentage",
+       color = "dataset pairs",
+       shape = "classification") +
+  xlim(1,100) +
+  ylim(1,100) +
+  theme(plot.title = element_text(size = 20),
+        text = element_text(size = 16),# face = "bold"),
+        axis.title = element_text(size = 18))
+
+  
 
 # plot roc againt Lior's classifications ---------------------------------------------------------------
 
