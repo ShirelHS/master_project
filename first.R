@@ -9,9 +9,9 @@ rm(list = ls())
 
 # load all libraries here.
 # install if needed
-requiredPackages = c('reshape','dplyr','gtools', 'tibble', 
+requiredPackages = c('reshape','dplyr','gtools', 'tibble', 'stats',
                      'ggplot2', 'gridExtra', 'grid', 'data.table',
-                     'mosaic', 'ggpubr', 'stringi')
+                     'mosaic', 'ggpubr', 'stringi', 'MLmetrics')
 for(p in requiredPackages){
   if(!require(p,character.only = TRUE)) install.packages(p)
   library(p,character.only = TRUE)
@@ -195,6 +195,61 @@ order_files2_tbl <- function(all_files) {
 add_gene_name2_rsem <- function(result_tbl) {
   # read gff file 
   gff_path <- readline(prompt = "Enter path of gff file: ")
+ 
+  if (endsWith(gff_path, 'gff3') == TRUE) {
+    id_name_df <- gff_gene_names(gff_path)
+  }
+  else if (endsWith(gff_path, 'gtf') == TRUE) {
+    id_name_df <- gtf_gene_names(gff_path)
+  }
+  
+  # add colum of name to results file
+  with_names <- result_tbl %>%
+    inner_join(id_name_df, by = c("gene" = "id")) %>%
+    relocate(name, .after = gene) 
+  
+  return(with_names)
+}
+
+gff_gene_names <- function(gff_path) {
+  
+  gff <- read.delim(file = gff_path, skip = 1001, header = F)
+  genes_only <- gff %>% 
+    filter(V3 == "gene") %>%
+    select(V9)
+  
+  splited_info_genes <- strsplit(genes_only$V9, ";")
+  id_name <- (unlist(lapply(splited_info_genes, function(x) x[1:2])))
+  id <- gsub("ID=","",id_name[grep(pattern = "ID=", x = id_name)])
+  name <- gsub("Name=","",id_name[grep(pattern = "Name=", x = id_name)])
+  id_name_df <- data.frame(id,name)
+  return(id_name_df)
+}
+
+gtf_gene_names <- function(gtf_path) {
+  
+  gff <- read.delim(file = gtf_path, header = F)[9]
+
+  genes_only <- unique(lapply(gff$V9, function(x) return(str_split(x, ";")[[1]][c(1,3)])))
+  
+  details_striped <- lapply(genes_only, function(x) 
+    return(list(gsub("gene_id ","", x[[1]][1]),gsub(" gene_name ","", x[[2]][1])))) 
+  id_name_df <- do.call(rbind.data.frame, details_striped)
+  colnames(id_name_df) <- c("id", "name")
+  return(id_name_df)
+}
+
+#' Title
+#'
+#' @param result_tbl
+#'
+#' @return
+#' @export
+#'
+#' @examples
+add_gene_name2_rsem_gtf <- function(result_tbl) {
+  # read gff file 
+  gff_path <- readline(prompt = "Enter path of gff file: ")
   gff <- read.delim(file = gff_path, skip = 1001, header = F)
   genes_only <- gff %>% 
     filter(V3 == "gene") %>%
@@ -211,7 +266,7 @@ add_gene_name2_rsem <- function(result_tbl) {
     inner_join(id_name_df, by = c("gene" = "id")) %>%
     select(-name) %>%
     add_column(name = name, .before = 2) 
-    
+  
   return(with_names)
 }
 
@@ -261,7 +316,7 @@ write_csv <- function(tble, file_name) {
 #'
 #' @examples
 check_main1 <- function() {
-#  path <- getwd()
+  #path <- getwd()
   
   file_list <- read_fpkm_files(path = path)
   hours_n_files <- fix_hours(file_list)
@@ -276,7 +331,9 @@ check_main1 <- function() {
   
   colnames(full_exp_df)[1] <- "gene_id"
   colnames(full_exp_df)[2] <- "gene_name"
-  full_exp_df <- full_exp_df[-which(full_exp_df$gene_id == "gene_id"),]
+  if (length(which(full_exp_df$gene_id == "gene_id")) > 0) {
+    full_exp_df <- full_exp_df[-which(full_exp_df$gene_id == "gene_id"),]
+  }
   genes_to_plot <- gene_names_from_user()
   write_csv(full_exp_df,"exp_df")
   return(list(full_exp_df, genes_to_plot))
