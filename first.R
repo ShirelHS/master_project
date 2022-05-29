@@ -11,7 +11,7 @@ rm(list = ls())
 # install if needed
 requiredPackages = c('reshape','dplyr','gtools', 'tibble', 'stats',
                      'ggplot2', 'gridExtra', 'grid', 'data.table',
-                     'mosaic', 'ggpubr', 'stringi', 'MLmetrics')
+                     'mosaic', 'ggpubr', 'stringi', 'MLmetrics', 'readr')
 for(p in requiredPackages){
   if(!require(p,character.only = TRUE)) install.packages(p)
   library(p,character.only = TRUE)
@@ -402,23 +402,32 @@ take_max_exp_for_plot <- function(exp_df) {
   reorganized_df$log <- log2(reorganized_df$max)
   reorganized_df$log[reorganized_df$log < -10 | reorganized_df$log == -Inf] <- -10
   
+  # order only the mature transcripts and take the threshold for 50% highly expressed genes
+  mature_to_filter_by <- reorganized_df %>%
+    filter(type == "mature") %>%
+    arrange(desc(max), .by_group = FALSE) 
+  threshold_to_filter <-  (mature_to_filter_by %>% slice_head(n = nrow(mature_to_filter_by)*0.5))[nrow(mature_to_filter_by)*0.5, c("log")]
+  
   pdf(file = "exp_hist_pre_mat.pdf")
   par(mfrow=c(2,2))
   
   # here call the plot function
-  plot(plot_exp_hist(reorganized_df))
+  plot(plot_exp_hist(reorganized_df, threshold_to_filter))
   
   dev.off()
 }
 
 
-plot_exp_hist <- function(df) {
+plot_exp_hist <- function(df, threshold_num) {
   
   ggplot(data = df, aes(x = df$log, fill = type)) +
     geom_histogram(binwidth = 0.1, alpha = 0.4, position = "identity") +
     coord_cartesian(ylim = c(0,500)) +
     labs(title = "Histogram of Max Exp mRNA and pre-mRNA", x = "log2 FPKM", y = "count") +
-    theme(text = element_text(size = 18))
+    theme(text = element_text(size = 18)) +
+    geom_vline(xintercept = threshold_num) +
+    geom_text(aes(x = threshold_num, label = paste0("\n", round(threshold_num, 2)), y = 1), 
+              colour = "black", angle = 90, text = element_text(size = 11))
   
 }
 
