@@ -420,7 +420,7 @@ take_max_exp_for_plot <- function(exp_df) {
 
 plot_exp_hist <- function(df, threshold_num) {
   
-  ggplot(data = df, aes(x = df$log, fill = type)) +
+  ggplot(data = df, aes(x = log, fill = type)) +
     geom_histogram(binwidth = 0.1, alpha = 0.4, position = "identity") +
     coord_cartesian(ylim = c(0,500)) +
     labs(title = "Histogram of Max Exp mRNA and pre-mRNA", x = "log2 FPKM", y = "count") +
@@ -756,11 +756,11 @@ hist_ggplot <- function(one_hour_exp, current_hour, sub_, threshold) {
   below_threshold <- sum(one_hour_exp < threshold)
   sub_title <- paste(paste(above_threshold, sub_,"above",threshold) , paste(below_threshold, sub_,"below", threshold), sep = "\n")
   
-  ggplot(data = df_hour_exp, aes(x = one_hour_exp)) + geom_histogram(bins = 50) +
+  ggplot(data = df_hour_exp, aes(x = one_hour_exp)) + geom_histogram(binwidth = 0.1) +
     labs(title = title_, subtitle = sub_title, x = "fpkm levels (log2 scale)") + 
-    coord_cartesian(ylim = c(0,3000)) +
+    coord_cartesian(ylim = c(0,300)) +
     geom_vline(xintercept = threshold, colour = 'red') +
-    theme(plot.subtitle = element_text(size = 8))
+    theme(plot.subtitle = element_text(size = 8)) 
 }
 
 

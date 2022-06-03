@@ -172,7 +172,7 @@ dof_one_model <- function(model_num) {
                  M0 = {1},
                  M1 = {2},
                  M2 = {3},
-                 M3 = {5}
+                 M3 = {4}
   ))
   
 }
@@ -220,6 +220,7 @@ chi_test_3_comp <- function(gene, second_comp,model_x, model_y, model_z, model_q
   p_val <- pchisq(calculate_LR(gene, previous_comp, model_q),
                   degrees_of_freedom(second_comp, "M3"), lower.tail = FALSE)
   return(p_val)
+  
 }
 
 
@@ -237,7 +238,7 @@ switch_parameter <- function(gene, model, models_list, parameter_type) {
   
   return( switch(parameter_type,
                  x0 = {find_x(gene, model, models_list, "t0")},
-                 x1 = {find_x(gene, model, models_list, "t1")},
+  #               x1 = {find_x(gene, model, models_list, "t1")},
                  B = {find_B(gene, model, models_list)},
                  t0 = {find_t0(gene, model, models_list)},
                  t1 = {find_t1(gene, model, models_list)},
@@ -301,12 +302,12 @@ find_B <- function(gene, gene_fitted_model, models_list) {
 
 # plot model parameter distribution ----------------------------------------------------------
 # 7.
-# plot an histogram for each parameter of the models: X0, X1, t0, t1, B
+# plot an histogram for each parameter of the models: X0, t0, t1, B
 
 plot_parameter_hist <- function(param_vec, param_type) {
   
   ggplot(param_vec, aes(x)) +
-    geom_histogram(aes(y=(..count..)/sum(..count..)), binwidth = 0.1) +
+    geom_histogram(aes(y=(..count..)/nrow(param_vec)), binwidth = 0.1) +
     labs(y = "% of genes", x = param_type, title = paste("Histogram of", param_type)) +
     theme(text = element_text(size = 18))
   
@@ -336,11 +337,11 @@ plot_params_list <- function(list_parameters_per_gene) {
     select(x)
   plot_x0 <- plot_parameter_hist(x0, "x0") 
   
-  x1 <- data.frame(x = as.numeric(unlist(list_parameters_per_gene$x1)), mod = unlist(list_parameters_per_gene$mod))
-  x1 <- x1 %>%
-    filter(mod == "M3") %>%
-    select(x)
-  plot_x1 <- plot_parameter_hist(x1, "x1") 
+  # x1 <- data.frame(x = as.numeric(unlist(list_parameters_per_gene$x1)), mod = unlist(list_parameters_per_gene$mod))
+  # x1 <- x1 %>%
+  #   filter(mod == "M3") %>%
+  #   select(x)
+  # plot_x1 <- plot_parameter_hist(x1, "x1") 
   
   pdf(file = "parameters_graphs_m1.pdf")
   par(mfrow=c(2,2))
@@ -349,7 +350,7 @@ plot_params_list <- function(list_parameters_per_gene) {
   plot(plot_t0)
   plot(plot_t1)
   plot(plot_x0)
-  plot(plot_x1)
+#  plot(plot_x1)
   
   dev.off()
   
@@ -476,6 +477,40 @@ calc_pval_mod <- function(m1_data, model_M0, model_M1, model_M2, model_M3) {
     mutate(third_comp_mod = case_when((comp3 < 0.05) ~ "M3",
                                       (comp3 >= 0.05) ~ as.character(second_comp_mod)))
   
+  
+  # cosmetical fix:
+  # if the two models are the same and the more complicated model is chosen, 
+  # than fix it.
+  most_fitted_model <- cosmetical_model_fix(most_fitted_model, model_M0, model_M1, model_M2, model_M3)
+  
+  return(most_fitted_model)
+  
+}
+
+# cosmetical fix:
+# if the two models are the same and the more complicated model is chosen, 
+# than fix it.
+cosmetical_model_fix <- function(most_fitted_model, model_M0, model_M1, model_M2, model_M3) {
+  
+  for (g in most_fitted_model$gene) {
+    
+    if ((most_fitted_model[which(most_fitted_model$gene %in% g), c("first_comp_mod")] == "M1") & 
+        all(model_M0[[g]][[1]]$fitted.values == model_M1[[g]][[1]]$fitted.values)) {
+      
+      most_fitted_model[which(most_fitted_model$gene %in% g), "first_comp_mod"] <- "M0"
+    }
+    else if ((most_fitted_model[which(most_fitted_model$gene %in% g), "second_comp_mod"] == "M2") & 
+             all(model_M1[[g]][[1]]$fitted.values == model_M2[[g]][[1]]$fitted.values)) {
+      
+      most_fitted_model[which(most_fitted_model$gene %in% g), "second_comp_mod"] <- "M1"
+    } 
+    else if ((most_fitted_model[which(most_fitted_model$gene %in% g), "third_comp_mod"] == "M3") & 
+                  all(model_M2[[g]][[1]]$fitted.values == model_M3[[g]][[1]]$fitted.values)) {
+      
+      most_fitted_model[which(most_fitted_model$gene %in% g), "third_comp_mod"] <- "M2"
+    }
+    
+  }
   return(most_fitted_model)
   
 }
@@ -721,7 +756,7 @@ run_models_stat_tests <- function() {
   
   most_fitted_model <- calc_pval_mod(m1_data, model_M0, model_M1, model_M2, model_M3)
   
-  parameter_list <- c("gene","mod", "x0", "x1", "B", "t0", "t1")
+  parameter_list <- c("gene","mod", "x0", "B", "t0", "t1")
   models_list <- list(model_M0, model_M1, model_M2, model_M3)
   
   list_genes_mod <- get_the_mod(most_fitted_model, m1_data, model_M0, model_M1, model_M2, model_M3)
@@ -736,15 +771,15 @@ run_models_stat_tests <- function() {
   
   saveRDS(file = "lse_list.RDS", lse_all_genes)
   
-  mse_all_genes <- unlist(lapply(list_genes_mod, function(x) MSE(x[[2]][[2]], x[[1]]$values)))
-  saveRDS(file = "mse_list.RDS", mse_all_genes)
+  # mse_all_genes <- unlist(lapply(list_genes_mod, function(x) MSE(x[[2]][[2]], x[[1]]$values)))
+  # saveRDS(file = "mse_list.RDS", mse_all_genes)
   
   list_parameters_per_gene <- 
     as.data.frame(sapply(parameter_list, 
                          function(p) parameter_4_each_gene(most_fitted_model$gene,
                                                            most_fitted_model$third_comp_mod, 
                                                            models_list, p)))
-  
+  plot_params_list(list_parameters_per_gene)
   saveRDS(list_parameters_per_gene, "list_parameters_lm.RDS")
   
 }
@@ -755,19 +790,19 @@ run_models_stat_tests <- function() {
 # should add some plots to the end of the pipeline
 
 
-pdf(file = "p_values_goodness_of_fit.pdf")
-par(mfrow=c(2,2))
-
-ggplot(pvalues, aes(p.v)) + 
-  stat_bin(aes(y=..count../sum(..count..))) + 
-  labs(title = "p values - goodness of fit", y = "fraction of p values", x = "values") +
-  theme(text = element_text(size = 18))
-
-dev.off()
-
-
-
+# pdf(file = "p_values_goodness_of_fit.pdf")
+# par(mfrow=c(2,2))
+# 
+# ggplot(pvalues, aes(p.v)) + 
+#   stat_bin(aes(y=..count../nrow(pvalues))) + 
+#   labs(title = "p values - goodness of fit", y = "fraction of p values", x = "values") +
+#   theme(text = element_text(size = 18))
+# 
+# dev.off()
+# 
 
 
+# corrected_pv <- data.frame(p.v = readRDS("p_val_signif.RDS"))
+# ggplot(corrected_pv, aes(x = p.v, y = ..count../nrow(corrected_pv))) + geom_histogram()
 
 

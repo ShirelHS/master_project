@@ -7,8 +7,8 @@
 # the data needed:
 # log_exp_tbl.csv file
 
-setwd(getwd())
-rm(list = ls())
+setwd(getwd()) # set the directory to work in
+rm(list = ls()) # delete/clear global environment
 
 # ---------------------------------------------------------------------------------
 # 1.
@@ -35,7 +35,7 @@ get_mzt <- function() {
 normalized_exp <- read_relev_data("normalized_exp.csv")
 
 # for zebrafish:
-# MZT <- 3 
+# MZT <- 3.5 
 MZT <- as.numeric(get_mzt())
   
 
