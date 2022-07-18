@@ -25,7 +25,7 @@ rm(requiredPackages,p)
 # create one expression table
 
 # get the results file path (same as getwd())
-path <- getwd()
+#path <- getwd()
 
 #' Title
 #' this function read files of FPKM of different samples or repetitions from the same directory
@@ -331,9 +331,9 @@ check_main1 <- function() {
   
   colnames(full_exp_df)[1] <- "gene_id"
   colnames(full_exp_df)[2] <- "gene_name"
-  if (length(which(full_exp_df$gene_id == "gene_id")) > 0) {
-    full_exp_df <- full_exp_df[-which(full_exp_df$gene_id == "gene_id"),]
-  }
+  # if (length(which(full_exp_df$gene_id == "gene_id")) > 0) {
+  #   full_exp_df <- full_exp_df[-which(full_exp_df$gene_id == "gene_id"),]
+  # }
   genes_to_plot <- gene_names_from_user()
   write_csv(full_exp_df,"exp_df")
   return(list(full_exp_df, genes_to_plot))
@@ -559,12 +559,12 @@ check_main3 <- function() {
 #'
 #' @examples
 normalize_exp <- function(filtered_dataset) {
-  
+
   log_expression <- data.frame(filtered_dataset)
   as_numeric_exp <- as.data.frame(lapply(log_expression[,-c(1,2)], function(x) as.numeric(as.character(x))))
   log_expression[,-c(1,2)] <- as_numeric_exp + 0.1^7
   log_expression[,-c(1,2)] <- log2(log_expression[,-c(1,2)])
-  
+
   return(log_expression)
 }
 
@@ -678,11 +678,11 @@ plot_summed_iso <- function(fpkm_df) {
   
   
   graph <- ggplot(data = stacked, aes(x = ind, y = values, color = part, group = part)) + 
-    geom_point() + 
-    stat_summary(aes(group = part), geom = "line") +
+    geom_point(size = 2) + 
+    stat_summary(aes(group = part), size = 2, geom = "line") +
     labs(title = current_gene_name, x = "hours post fertilization", y = "log2(FPKM)") +
     coord_cartesian(ylim = c(-5, 15), xlim = c(0, max(stacked$ind))) +
-    theme(text = element_text(size = 18), axis.text = element_text(size = 18), 
+    theme(text = element_text(size = 18, face = "bold"), axis.text = element_text(size = 18, face = "bold"), 
           legend.text = element_text(size = 18))
   
 }
