@@ -55,7 +55,7 @@ precursor <- cbind(normalized_exp[,1:2], normalized_exp[,grep("precursor", colna
 # first criterion:
 # take maximum hour for mature transcript before the mzt:
 gene_hours <- as.numeric(gsub("transcript_|_\\d+","",colnames(mature)[-c(1,2)]))
-hours_bf_mzt <- gene_hours[gene_hours < MZT]
+hours_bf_mzt <- gene_hours[gene_hours <= MZT]
 before_mzt_col_name <- mature[,1:(length(hours_bf_mzt)+2)] 
 before_mzt_col_name$max_ <- unlist(apply(before_mzt_col_name[,-c(1,2)], 1, max))
 
@@ -65,7 +65,7 @@ before_mzt_col_name$max_ <- unlist(apply(before_mzt_col_name[,-c(1,2)], 1, max))
 # take the ratio of maximum expression of pre-mRNA after MZT to before MZT
 pre_hours <- as.numeric(gsub("precursor_|_\\d+","",colnames(precursor)[-c(1,2)]))
 pre_hour_names_aft_mzt <- pre_hours[pre_hours > MZT]
-pre_hour_names_bf_mzt <- pre_hours[pre_hours < MZT]
+pre_hour_names_bf_mzt <- pre_hours[pre_hours <= MZT]
 
 pre_hour_bf_mzt <- precursor[,1:(length(pre_hour_names_bf_mzt)+2)]
 pre_hour_aft_mzt <- precursor[,c(1,2,(length(pre_hour_names_bf_mzt)+3):(ncol(precursor)))]
